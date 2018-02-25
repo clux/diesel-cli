@@ -5,7 +5,7 @@ https://hub.docker.com/r/clux/diesel-cli/)
 [![docker image info](https://images.microbadger.com/badges/image/clux/diesel-cli.svg)](http://microbadger.com/images/clux/diesel-cli)
 [![docker tag](https://images.microbadger.com/badges/version/clux/diesel-cli.svg)](https://hub.docker.com/r/clux/diesel-cli/tags/)
 
-Needed a dockerised diesel cli to use as a migration [init container](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/) for kubernetes, so here's a tiny one built with [muslrust](https://github.com/clux/muslrust).
+Needed a dockerised diesel cli to use as a migration container for CI and Kubernetes, so here's a ~12MB one built with [muslrust](https://github.com/clux/muslrust).
 
 Builds weekly on cron against latest stable rust, and latest released version of [diesel](https://crates.io/crates/diesel).
 
@@ -55,10 +55,10 @@ spec:
       value: "postgres://clux:foo@10.10.10.10/mydb"
 ```
 
-The `initContainers` use is the least interesting, because most languages can do a 'run pending migration' step as part of their startup process. However, coordinating a rollback can be harder because the app/pod is usually just killed without any signal as to why.
+The `initContainers` use is the least interesting, because most languages can do a 'run pending migration' step as part of their startup process. However, coordinating a rollback can be harder because the app/pod is often just killed without any indication of why.
 
-If you had accidentally done a breaking migration for this upgrade, then you would need to revert your migration as well, otherwise your entire deployment could be broken!
+If you had accidentally done a breaking migration for this upgrade, then you would need to revert your migration as well, otherwise your entire deployment could be broken.
 
-The `pre-rollback` lifecycle hook use is therefor more interesting. You could use this container to run `diesel migration revert` in a kubernetes `Job`.
+Thus, a `pre-rollback` lifecycle hook has potential here. You could use this container to run `diesel migration revert` in a kubernetes `Job` bound to the helm hook.
 
-Ideally, [you can avoid backwards incompatible migrations](https://github.com/elafarge/blog-articles/blob/master/01-no-downtime-migrations/zero-downtime-database-migrations.md), but this can provide some safety.
+Ideally, [you avoid backwards incompatible migrations](https://github.com/elafarge/blog-articles/blob/master/01-no-downtime-migrations/zero-downtime-database-migrations.md), but this can provide some safety when someone forgets to do this.

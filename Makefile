@@ -1,5 +1,6 @@
 NAME=diesel-cli
 VERSION=$(shell git rev-parse HEAD)
+SEMVER_VERSION=$(shell cat version)
 REPO=clux
 
 build:
@@ -16,5 +17,5 @@ tag-semver: build version
 	if curl -sSL https://registry.hub.docker.com/v1/repositories/$(REPO)/$(NAME)/tags | jq -r ".[].name" | grep -q $(SEMVER_VERSION); then \
 		echo "Tag $(SEMVER_VERSION) already exists" && exit 1 ;\
 	fi
-	docker tag $(REPO)/$(NAME):$(VERSION) $(REPO)/$(NAME):$(shell cat version)
-	docker push $(REPO)/$(NAME):$(shell cat version)
+	docker tag $(REPO)/$(NAME):$(VERSION) $(REPO)/$(NAME):$(SEMVER_VERSION)
+	docker push $(REPO)/$(NAME):$(SEMVER_VERSION)

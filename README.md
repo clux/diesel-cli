@@ -33,32 +33,38 @@ FROM clux/diesel-cli
 ADD migrations /
 ```
 
-then run that container as part of [helm lifecycle hooks](https://github.com/kubernetes/helm/blob/master/docs/charts_hooks.md#the-available-hooks) or as an [init container](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/) on deploy illustrated here:
+then run that container as part of [helm lifecycle hooks](https://github.com/kubernetes/helm/blob/master/docs/charts_hooks.md#the-available-hooks) against a `Deployment`.
 
 ```yaml
-apiVersion: v1
-kind: Pod
+apiVersion: batch/v1
+kind: Job
 metadata:
-  name: myapp-pod
+  name: "{{.Release.Name}}"
   labels:
-    app: myapp
+    heritage: {{.Release.Service | quote }}
+    release: {{.Release.Name | quote }}
+    chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+  annotations:
+    "helm.sh/hook": pre-install
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": hook-succeeded
 spec:
-  containers:
-  - name: myapp-container
-    image: myapp-image
-  initContainers:
-  - name: migrate-db
-    image: your-diesel-cli
-    command: ['diesel', 'migration', 'run']
-    env:
-    - name: DATABASE_URL
-      value: "postgres://clux:foo@10.10.10.10/mydb"
+  template:
+    metadata:
+      name: "{{.Release.Name}}"
+      labels:
+        heritage: {{.Release.Service | quote }}
+        release: {{.Release.Name | quote }}
+        chart: "{{.Chart.Name}}-{{.Chart.Version}}"
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: post-install-job
+        image: your-diesel-cli
+        command: ['diesel', 'migration', 'run']
+        env:
+        - name: DATABASE_URL
+          value: "postgres://clux:foo@10.10.10.10/mydb"
 ```
 
-The `initContainers` use is the least interesting, because most languages can do a 'run pending migration' step as part of their startup process. However, coordinating a rollback can be harder because the app/pod is often just killed without any indication of why.
-
-If you had accidentally done a breaking migration for this upgrade, then you would need to revert your migration as well, otherwise your entire deployment could be broken.
-
-Thus, a `pre-rollback` lifecycle hook has potential here. You could use this container to run `diesel migration revert` in a kubernetes `Job` bound to the helm hook.
-
-Ideally, [you avoid backwards incompatible migrations](https://github.com/elafarge/blog-articles/blob/master/01-no-downtime-migrations/zero-downtime-database-migrations.md), but this can provide some safety when someone forgets to do this.
+This should work if [you avoid backwards incompatible migrations](https://github.com/elafarge/blog-articles/blob/master/01-no-downtime-migrations/zero-downtime-database-migrations.md), and it avoids races with multiple pods attempting db migrations at the same time during kube rolling updates.
